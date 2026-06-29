@@ -23,6 +23,7 @@ import {
 } from '../types/schedule';
 import { durationLabel, minutesToTime, timeToMinutes } from '../utils/time';
 import { theme } from '../theme';
+import { DurationWheelPicker, TimeWheelPicker } from './WheelPicker';
 
 interface EventEditorProps {
   isOpen: boolean;
@@ -145,11 +146,29 @@ export function EventEditor({
   const startM = timeToMinutes(startTime);
   const endM = timeToMinutes(endTime);
   const durationMinutes = Number.isFinite(startM) && endM > startM ? endM - startM : 30;
+  const maxDuration = Number.isFinite(startM) ? Math.max(1, 1440 - startM) : 12 * 60;
 
-  const adjustDuration = (delta: number) => {
-    if (!Number.isFinite(startM)) return;
-    const next = Math.max(5, durationMinutes + delta);
-    setEndTime(minutesToTime(Math.min(1440, startM + next)));
+  const setStartMinutes = (minutes: number) => {
+    const nextStart = Math.max(0, Math.min(1438, minutes));
+    setStartTime(minutesToTime(nextStart));
+    const currentEnd = timeToMinutes(endTime);
+    if (!Number.isFinite(currentEnd) || currentEnd <= nextStart) {
+      setEndTime(minutesToTime(Math.min(1440, nextStart + durationMinutes)));
+    }
+  };
+
+  const setEndMinutes = (minutes: number) => {
+    const nextEnd = Math.max(1, Math.min(1440, minutes));
+    const start = timeToMinutes(startTime);
+    if (Number.isFinite(start) && nextEnd > start) {
+      setEndTime(minutesToTime(nextEnd));
+    }
+  };
+
+  const setDurationMinutes = (minutes: number) => {
+    const start = timeToMinutes(startTime);
+    if (!Number.isFinite(start)) return;
+    setEndTime(minutesToTime(Math.min(1440, start + minutes)));
   };
 
   return (
@@ -175,53 +194,31 @@ export function EventEditor({
               placeholderTextColor={theme.textTertiary}
             />
 
-            <View style={styles.row}>
-              <View style={styles.half}>
-                <Text style={styles.label}>開始 (HH:MM)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={startTime}
-                  onChangeText={setStartTime}
-                  placeholder="09:00"
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-              <View style={styles.half}>
-                <Text style={styles.label}>終了 (HH:MM)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={endTime}
-                  onChangeText={setEndTime}
-                  placeholder="09:30"
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-            </View>
+            <TimeWheelPicker
+              label="開始時刻"
+              minutes={Number.isFinite(startM) ? startM : 9 * 60}
+              onChange={setStartMinutes}
+            />
 
-            <Text style={styles.label}>所要時間</Text>
-            <View style={styles.durationRow}>
-              <TouchableOpacity
-                style={[styles.durationBtn, durationMinutes <= 5 && styles.durationBtnDisabled]}
-                onPress={() => adjustDuration(-5)}
-                disabled={durationMinutes <= 5}
-              >
-                <Text style={styles.durationBtnText}>−</Text>
-              </TouchableOpacity>
-              <Text style={styles.durationValue}>{durationLabel(0, durationMinutes)}</Text>
-              <TouchableOpacity
-                style={[styles.durationBtn, startM + durationMinutes + 5 > 1440 && styles.durationBtnDisabled]}
-                onPress={() => adjustDuration(5)}
-                disabled={!Number.isFinite(startM) || startM + durationMinutes + 5 > 1440}
-              >
-                <Text style={styles.durationBtnText}>+</Text>
-              </TouchableOpacity>
-            </View>
+            <DurationWheelPicker
+              label="所要時間（1分単位）"
+              durationMinutes={durationMinutes}
+              maxMinutes={maxDuration}
+              onChange={setDurationMinutes}
+            />
+
+            <TimeWheelPicker
+              label="終了時刻"
+              minutes={Number.isFinite(endM) && endM > startM ? endM : (Number.isFinite(startM) ? startM + 30 : 9 * 60 + 30)}
+              onChange={setEndMinutes}
+            />
+
             {event && (
               <Text style={styles.durationHint}>保存すると、この予定以降のスケジュールも連動してずれます</Text>
             )}
             {Number.isFinite(startM) && endM > startM && (
               <Text style={styles.durationEnd}>
-                終了 {minutesToTime(endM)}（{durationLabel(startM, endM)}）
+                {durationLabel(startM, endM)}（{minutesToTime(startM)} → {minutesToTime(endM)}）
               </Text>
             )}
 
@@ -336,26 +333,6 @@ const styles = StyleSheet.create({
     color: theme.text,
   },
   textarea: { minHeight: 72, textAlignVertical: 'top' },
-  row: { flexDirection: 'row' },
-  half: { flex: 1, marginRight: 6 },
-  durationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    marginBottom: 4,
-  },
-  durationBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: theme.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  durationBtnDisabled: { opacity: 0.35 },
-  durationBtnText: { fontSize: 22, fontWeight: '700', color: theme.accent },
-  durationValue: { fontSize: 18, fontWeight: '700', color: theme.text, minWidth: 72, textAlign: 'center' },
   durationHint: {
     fontSize: 12,
     color: theme.textSecondary,
